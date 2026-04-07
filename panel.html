@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Panel Facilitador — Búsqueda del Tesoro GDI</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --navy: #0A1628; --blue: #1A3A6B; --teal: #00B4D8;
+    --gold: #FFD166; --white: #F0F4FF; --gray: #8899BB;
+    --success: #06D6A0; --danger: #EF476F;
+    --card-bg: rgba(255,255,255,0.04); --border: rgba(0,180,216,0.2);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--navy); color: var(--white); font-family: 'Space Grotesk', sans-serif; min-height: 100vh; }
+  body::before { content:''; position:fixed; inset:0; background-image:linear-gradient(rgba(0,180,216,0.04) 1px,transparent 1px),linear-gradient(90deg,rgba(0,180,216,0.04) 1px,transparent 1px); background-size:40px 40px; pointer-events:none; z-index:0; }
+
+  .screen { position:relative; z-index:1; display:none; }
+  .screen.active { display:block; }
+
+  /* ── LOGIN ── */
+  #screen-login {
+    max-width: 400px; margin: 0 auto;
+    padding: 60px 24px 48px;
+    display: flex; flex-direction: column; align-items: center;
+  }
+  #screen-login.active { display: flex; }
+  .login-badge { display:inline-block; background:rgba(0,180,216,0.12); border:1px solid var(--teal); color:var(--teal); font-family:'DM Mono',monospace; font-size:11px; letter-spacing:2px; text-transform:uppercase; padding:4px 14px; border-radius:20px; margin-bottom:16px; }
+  .login-title { font-size:24px; font-weight:700; margin-bottom:6px; text-align:center; }
+  .login-sub { font-size:13px; color:var(--gray); margin-bottom:32px; text-align:center; }
+  .login-card { background:var(--card-bg); border:1px solid var(--border); border-radius:18px; padding:28px 24px; width:100%; }
+  .login-card label { display:block; font-size:11px; letter-spacing:1.5px; text-transform:uppercase; color:var(--gray); font-family:'DM Mono',monospace; margin-bottom:8px; }
+  .login-card input { width:100%; padding:13px 16px; background:rgba(255,255,255,0.05); border:1.5px solid var(--border); border-radius:10px; color:var(--white); font-family:'Space Grotesk',sans-serif; font-size:16px; outline:none; transition:border-color 0.2s; }
+  .login-card input:focus { border-color:var(--teal); }
+  .login-error { color:var(--danger); font-size:13px; margin-top:10px; display:none; }
+  .login-error.show { display:block; }
+
+  /* ── PANEL ── */
+  #screen-panel { padding: 0; }
+  #screen-panel.active { display: block; }
+
+  .panel-header {
+    background: rgba(10,22,40,0.95);
+    border-bottom: 1px solid var(--border);
+    padding: 16px 24px;
+    display: flex; align-items: center; gap: 16px;
+    position: sticky; top: 0; z-index: 10;
+    backdrop-filter: blur(12px);
+  }
+  .panel-title { font-size: 16px; font-weight: 700; flex: 1; }
+  .panel-title span { color: var(--teal); }
+  .live-dot { width:8px; height:8px; border-radius:50%; background:var(--success); box-shadow:0 0 8px var(--success); animation:blink 1.5s ease-in-out infinite; }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+  .refresh-info { font-family:'DM Mono',monospace; font-size:11px; color:var(--gray); }
+  .btn-logout { background:transparent; border:1px solid rgba(239,71,111,0.3); color:var(--danger); padding:6px 14px; border-radius:8px; font-size:12px; cursor:pointer; font-family:'Space Grotesk',sans-serif; }
+  .btn-logout:hover { background:rgba(239,71,111,0.1); }
+  .btn-clear { background:transparent; border:1px solid rgba(136,153,187,0.3); color:var(--gray); padding:6px 14px; border-radius:8px; font-size:12px; cursor:pointer; font-family:'Space Grotesk',sans-serif; }
+  .btn-clear:hover { background:rgba(136,153,187,0.08); color:var(--white); }
+
+  .panel-body { padding: 24px; max-width: 1100px; margin: 0 auto; }
+
+  /* SUMMARY CARDS */
+  .summary-row { display:grid; grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); gap:14px; margin-bottom:28px; }
+  .summary-card { background:var(--card-bg); border:1px solid var(--border); border-radius:14px; padding:16px; text-align:center; }
+  .summary-num { font-family:'DM Mono',monospace; font-size:32px; font-weight:500; }
+  .summary-num.teal { color:var(--teal); }
+  .summary-num.gold { color:var(--gold); }
+  .summary-num.green { color:var(--success); }
+  .summary-lbl { font-size:11px; color:var(--gray); margin-top:4px; }
+
+  /* LEADERBOARD */
+  .section-title { font-size:13px; font-weight:600; letter-spacing:1.5px; text-transform:uppercase; color:var(--gray); font-family:'DM Mono',monospace; margin-bottom:14px; }
+
+  .leaderboard { display:flex; flex-direction:column; gap:10px; }
+  .team-row {
+    background:var(--card-bg); border:1px solid var(--border);
+    border-radius:14px; padding:16px 18px;
+    display:grid;
+    grid-template-columns: 36px 1fr auto auto auto auto;
+    align-items:center; gap:14px;
+    transition: border-color 0.3s;
+  }
+  .team-row.finished { border-color: rgba(6,214,160,0.4); background:rgba(6,214,160,0.04); }
+  .team-row.rank-1 { border-color: rgba(255,209,102,0.6); background:rgba(255,209,102,0.06); }
+
+  .rank { font-family:'DM Mono',monospace; font-size:18px; font-weight:700; text-align:center; color:var(--gray); }
+  .rank.r1 { color:var(--gold); }
+  .rank.r2 { color:#C0C0C0; }
+  .rank.r3 { color:#CD7F32; }
+
+  .team-name { font-size:15px; font-weight:600; }
+  .team-status { font-size:11px; color:var(--gray); margin-top:2px; }
+  .team-status.done { color:var(--success); }
+
+  .col-val { text-align:center; }
+  .col-label { font-size:10px; color:var(--gray); letter-spacing:1px; text-transform:uppercase; font-family:'DM Mono',monospace; margin-bottom:2px; }
+  .col-num { font-family:'DM Mono',monospace; font-size:18px; font-weight:500; }
+  .col-num.green { color:var(--success); }
+  .col-num.red   { color:var(--danger); }
+  .col-num.blue  { color:var(--teal); }
+  .col-num.gold  { color:var(--gold); }
+
+  .progress-mini { display:flex; gap:4px; align-items:center; }
+  .mini-dot { width:10px; height:10px; border-radius:50%; background:rgba(136,153,187,0.2); border:1px solid rgba(136,153,187,0.3); transition:all 0.3s; }
+  .mini-dot.done { background:var(--success); border-color:var(--success); }
+
+  .empty-state { text-align:center; padding:48px 24px; color:var(--gray); }
+  .empty-state .empty-icon { font-size:48px; margin-bottom:12px; }
+  .empty-state p { font-size:14px; line-height:1.6; }
+
+  .btn { display:inline-flex; align-items:center; justify-content:center; gap:8px; padding:13px 22px; border-radius:10px; font-family:'Space Grotesk',sans-serif; font-weight:600; font-size:14px; cursor:pointer; border:none; transition:all 0.2s; }
+  .btn-primary { background:linear-gradient(135deg,var(--teal),#0090A8); color:var(--navy); }
+  .btn-primary:hover { transform:translateY(-1px); }
+
+  @keyframes fadeIn { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
+  .team-row { animation: fadeIn 0.3s ease; }
+
+  @media (max-width: 600px) {
+    .team-row { grid-template-columns: 28px 1fr auto auto; }
+    .col-time { display: none; }
+    .summary-num { font-size: 24px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div class="screen active" id="screen-login">
+  <div class="login-badge">🔐 Acceso Facilitador</div>
+  <div class="login-title">Panel de Control</div>
+  <div class="login-sub">Búsqueda del Tesoro — Gestión Documental Inteligente</div>
+  <div class="login-card">
+    <label for="pwd-input">Contraseña</label>
+    <input type="password" id="pwd-input" placeholder="••••••••" autocomplete="off">
+    <div class="login-error" id="login-error">Contraseña incorrecta. Inténtalo de nuevo.</div>
+    <button class="btn btn-primary" style="margin-top:16px;width:100%" onclick="doLogin()">Entrar al panel →</button>
+  </div>
+</div>
+
+<!-- PANEL -->
+<div class="screen" id="screen-panel">
+  <div class="panel-header">
+    <div class="live-dot"></div>
+    <div class="panel-title">Panel Facilitador — <span>GDI Búsqueda del Tesoro</span></div>
+    <div class="refresh-info" id="refresh-info">Actualizando...</div>
+    <button class="btn-clear" onclick="clearData()">🗑 Limpiar datos</button>
+    <button class="btn-logout" onclick="doLogout()">Salir</button>
+  </div>
+
+  <div class="panel-body">
+    <!-- Summary -->
+    <div class="summary-row">
+      <div class="summary-card">
+        <div class="summary-num teal" id="sum-groups">0</div>
+        <div class="summary-lbl">Grupos activos</div>
+      </div>
+      <div class="summary-card">
+        <div class="summary-num gold" id="sum-finished">0</div>
+        <div class="summary-lbl">Grupos finalizados</div>
+      </div>
+      <div class="summary-card">
+        <div class="summary-num green" id="sum-correct">0</div>
+        <div class="summary-lbl">Respuestas correctas totales</div>
+      </div>
+      <div class="summary-card">
+        <div class="summary-num" style="color:var(--danger)" id="sum-wrong">0</div>
+        <div class="summary-lbl">Respuestas incorrectas totales</div>
+      </div>
+    </div>
+
+    <!-- Leaderboard -->
+    <div class="section-title">📊 Tabla de posiciones</div>
+    <div class="leaderboard" id="leaderboard">
+      <div class="empty-state">
+        <div class="empty-icon">⏳</div>
+        <p>Esperando que los grupos comiencen el recorrido.<br>Los resultados aparecerán aquí en tiempo real.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ══ CONFIG ══
+const PASSWORD = 'gdi2025';  // Cambia esta contraseña antes de publicar
+const REFRESH_MS = 5000;     // Actualizar cada 5 segundos
+let refreshTimer = null;
+
+// ══ LOGIN ══
+function doLogin() {
+  const val = document.getElementById('pwd-input').value;
+  if (val === PASSWORD) {
+    document.getElementById('screen-login').classList.remove('active');
+    document.getElementById('screen-panel').classList.add('active');
+    loadLeaderboard();
+    refreshTimer = setInterval(loadLeaderboard, REFRESH_MS);
+  } else {
+    document.getElementById('login-error').classList.add('show');
+    document.getElementById('pwd-input').value = '';
+    document.getElementById('pwd-input').focus();
+  }
+}
+document.getElementById('pwd-input').addEventListener('keydown', e => { if (e.key==='Enter') doLogin(); });
+
+function doLogout() {
+  clearInterval(refreshTimer);
+  document.getElementById('screen-panel').classList.remove('active');
+  document.getElementById('screen-login').classList.add('active');
+  document.getElementById('pwd-input').value = '';
+}
+
+// ══ LOAD DATA ══
+async function loadLeaderboard() {
+  try {
+    const result = await window.storage.list('team:', true);
+    const keys = result?.keys || [];
+
+    const entries = [];
+    for (const key of keys) {
+      try {
+        const r = await window.storage.get(key, true);
+        if (r?.value) entries.push(JSON.parse(r.value));
+      } catch(e) {}
+    }
+
+    renderLeaderboard(entries);
+    const now = new Date();
+    document.getElementById('refresh-info').textContent =
+      'Actualizado ' + now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0') + ':' + now.getSeconds().toString().padStart(2,'0');
+  } catch(e) {
+    document.getElementById('refresh-info').textContent = 'Sin conexión al storage';
+  }
+}
+
+function renderLeaderboard(entries) {
+  // Sort: finished first (by time), then by points desc, then by correct desc
+  entries.sort((a,b) => {
+    if (a.finished && !b.finished) return -1;
+    if (!a.finished && b.finished) return 1;
+    if (a.finished && b.finished) return a.timeSeconds - b.timeSeconds;
+    if (b.points !== a.points) return b.points - a.points;
+    return b.correct - a.correct;
+  });
+
+  // Summary stats
+  document.getElementById('sum-groups').textContent = entries.length;
+  document.getElementById('sum-finished').textContent = entries.filter(e=>e.finished).length;
+  document.getElementById('sum-correct').textContent = entries.reduce((s,e)=>s+(e.correct||0),0);
+  document.getElementById('sum-wrong').textContent   = entries.reduce((s,e)=>s+(e.wrong||0),0);
+
+  const lb = document.getElementById('leaderboard');
+  if (entries.length === 0) {
+    lb.innerHTML = `<div class="empty-state"><div class="empty-icon">⏳</div><p>Esperando que los grupos comiencen el recorrido.<br>Los resultados aparecerán aquí en tiempo real.</p></div>`;
+    return;
+  }
+
+  const rankEmoji = ['🥇','🥈','🥉'];
+  lb.innerHTML = entries.map((e,i) => {
+    const rank = i < 3 ? rankEmoji[i] : (i+1);
+    const rankClass = i===0?'r1':i===1?'r2':i===2?'r3':'';
+    const dots = [1,2,3,4,5].map(n =>
+      `<div class="mini-dot ${e.points>=n?'done':''}"></div>`
+    ).join('');
+    const statusTxt = e.finished ? '✅ Completado' : `En curso · ${e.points}/5 puntos`;
+    const statusCls = e.finished ? 'done' : '';
+    const total = (e.correct||0) + (e.wrong||0);
+    const pct = total > 0 ? Math.round((e.correct/total)*100) : 0;
+
+    return `
+      <div class="team-row ${e.finished?'finished':''} ${i===0?'rank-1':''}">
+        <div class="rank ${rankClass}">${rank}</div>
+        <div>
+          <div class="team-name">${escHtml(e.team)}</div>
+          <div class="team-status ${statusCls}">${statusTxt}</div>
+          <div class="progress-mini" style="margin-top:6px">${dots}</div>
+        </div>
+        <div class="col-val">
+          <div class="col-label">Correctas</div>
+          <div class="col-num green">${e.correct||0}</div>
+        </div>
+        <div class="col-val">
+          <div class="col-label">Incorrectas</div>
+          <div class="col-num red">${e.wrong||0}</div>
+        </div>
+        <div class="col-val">
+          <div class="col-label">Efectividad</div>
+          <div class="col-num blue">${pct}%</div>
+        </div>
+        <div class="col-val col-time">
+          <div class="col-label">Tiempo</div>
+          <div class="col-num gold">${e.time||'--:--'}</div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+async function clearData() {
+  if (!confirm('¿Limpiar todos los datos de los grupos? Esta acción no se puede deshacer.')) return;
+  try {
+    const result = await window.storage.list('team:', true);
+    const keys = result?.keys || [];
+    for (const key of keys) {
+      try { await window.storage.delete(key, true); } catch(e) {}
+    }
+    await loadLeaderboard();
+  } catch(e) {
+    alert('No se pudo limpiar. Intenta de nuevo.');
+  }
+}
+
+function escHtml(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>
+</body>
+</html>
