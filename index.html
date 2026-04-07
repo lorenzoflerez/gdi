@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Búsqueda del Tesoro — Gestión Documental Inteligente</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --navy: #0A1628;
+    --blue: #1A3A6B;
+    --teal: #00B4D8;
+    --teal-light: #90E0EF;
+    --gold: #FFD166;
+    --white: #F0F4FF;
+    --gray: #8899BB;
+    --success: #06D6A0;
+    --danger: #EF476F;
+    --card-bg: rgba(255,255,255,0.04);
+    --border: rgba(0,180,216,0.2);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--navy);
+    color: var(--white);
+    font-family: 'Space Grotesk', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image:
+      linear-gradient(rgba(0,180,216,0.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,180,216,0.05) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none; z-index: 0;
+  }
+  body::after {
+    content: '';
+    position: fixed; top: -120px; right: -120px;
+    width: 400px; height: 400px;
+    background: radial-gradient(circle, rgba(0,180,216,0.15) 0%, transparent 70%);
+    pointer-events: none; z-index: 0;
+  }
+  .screen {
+    position: relative; z-index: 1;
+    display: none;
+    max-width: 600px;
+    margin: 0 auto;
+    padding: 24px 20px 48px;
+    min-height: 100vh;
+  }
+  .screen.active { display: flex; flex-direction: column; animation: fadeIn 0.35s ease; }
+
+  /* HEADER */
+  .header { text-align: center; padding: 28px 0 22px; }
+  .badge {
+    display: inline-block;
+    background: rgba(0,180,216,0.12);
+    border: 1px solid var(--teal);
+    color: var(--teal);
+    font-family: 'DM Mono', monospace;
+    font-size: 11px; letter-spacing: 2px; text-transform: uppercase;
+    padding: 4px 14px; border-radius: 20px; margin-bottom: 14px;
+  }
+  h1 { font-size: clamp(20px,5.5vw,28px); font-weight: 700; line-height: 1.2; }
+  h1 span { color: var(--teal); }
+  .subtitle { font-size: 13px; color: var(--gray); margin-top: 8px; line-height: 1.6; }
+
+  /* ERROR / WAITING */
+  .error-card {
+    background: rgba(239,71,111,0.08);
+    border: 1px solid rgba(239,71,111,0.3);
+    border-radius: 16px; padding: 28px 22px; text-align: center; margin-top: 20px;
+  }
+  .error-icon { font-size: 48px; margin-bottom: 12px; }
+  .error-title { font-size: 18px; font-weight: 600; color: #ff8fab; margin-bottom: 8px; }
+  .error-msg { font-size: 13px; color: var(--gray); line-height: 1.6; }
+
+  /* POINT INDICATOR */
+  .point-indicator {
+    display: flex; align-items: center; gap: 12px;
+    background: var(--card-bg); border: 1px solid var(--border);
+    border-radius: 14px; padding: 12px 16px; margin-bottom: 18px;
+  }
+  .point-dot {
+    width: 38px; height: 38px; border-radius: 50%;
+    background: linear-gradient(135deg, var(--teal), var(--blue));
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'DM Mono', monospace; font-weight: 500; font-size: 15px;
+    flex-shrink: 0; box-shadow: 0 0 16px rgba(0,180,216,0.4);
+  }
+  .point-info { flex: 1; }
+  .point-label { font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--gray); font-family: 'DM Mono', monospace; }
+  .point-title { font-size: 14px; font-weight: 600; color: var(--white); margin-top: 2px; }
+  .point-type { font-size: 10px; padding: 3px 10px; border-radius: 10px; font-family: 'DM Mono', monospace; white-space: nowrap; }
+  .type-fixed { background: rgba(0,180,216,0.15); color: var(--teal); }
+  .type-bank  { background: rgba(255,209,102,0.15); color: var(--gold); }
+
+  /* QUESTION */
+  .question-card {
+    background: var(--card-bg); border: 1px solid var(--border);
+    border-radius: 18px; padding: 22px 20px; margin-bottom: 16px;
+    backdrop-filter: blur(8px); flex: 1;
+  }
+  .question-text { font-size: clamp(14px,4vw,17px); font-weight: 500; line-height: 1.6; color: var(--white); margin-bottom: 22px; }
+  .options { display: flex; flex-direction: column; gap: 10px; }
+  .option {
+    display: flex; align-items: center; gap: 12px;
+    background: rgba(255,255,255,0.03);
+    border: 1.5px solid rgba(136,153,187,0.25);
+    border-radius: 12px; padding: 13px 14px;
+    cursor: pointer; transition: all 0.2s;
+    text-align: left; font-family: 'Space Grotesk', sans-serif;
+    font-size: 13px; color: var(--white); width: 100%;
+  }
+  .option:hover { border-color: var(--teal); background: rgba(0,180,216,0.08); }
+  .option.correct { border-color: var(--success); background: rgba(6,214,160,0.1); animation: pulse-green 0.5s ease; }
+  .option.wrong   { border-color: var(--danger);  background: rgba(239,71,111,0.1); animation: shake 0.4s ease; }
+  .option.disabled { pointer-events: none; opacity: 0.45; }
+  .option.disabled.correct, .option.disabled.wrong { opacity: 1; }
+  .opt-letter {
+    min-width: 28px; height: 28px; border-radius: 7px;
+    background: rgba(136,153,187,0.15); border: 1px solid rgba(136,153,187,0.3);
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'DM Mono', monospace; font-size: 12px; font-weight: 500;
+    color: var(--gray); transition: all 0.2s; flex-shrink: 0;
+  }
+  .option.correct .opt-letter { background: var(--success); border-color: var(--success); color: var(--navy); }
+  .option.wrong   .opt-letter { background: var(--danger);  border-color: var(--danger);  color: white; }
+
+  /* FEEDBACK */
+  .feedback { display: none; border-radius: 12px; padding: 13px 15px; font-size: 13px; line-height: 1.5; margin-top: 14px; }
+  .feedback.show { display: block; }
+  .feedback.correct-fb { background: rgba(6,214,160,0.1); border: 1px solid rgba(6,214,160,0.3); color: var(--success); }
+  .feedback.wrong-fb   { background: rgba(239,71,111,0.1); border: 1px solid rgba(239,71,111,0.3); color: #ff8fab; }
+
+  /* BANK ALERT */
+  .bank-alert {
+    background: rgba(255,209,102,0.08); border: 1px solid rgba(255,209,102,0.3);
+    border-radius: 12px; padding: 11px 14px; font-size: 13px; color: var(--gold);
+    margin-bottom: 14px; display: none; align-items: center; gap: 10px;
+  }
+  .bank-alert.show { display: flex; }
+
+  /* PROGRESS */
+  .progress-wrap { margin-bottom: 16px; }
+  .progress-bar-bg { height: 4px; background: rgba(136,153,187,0.15); border-radius: 2px; overflow: hidden; }
+  .progress-bar-fill { height: 100%; background: linear-gradient(90deg, var(--teal), var(--teal-light)); border-radius: 2px; transition: width 0.4s ease; }
+  .progress-label { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--gray); margin-top: 6px; }
+
+  /* BUTTONS */
+  .btn {
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    padding: 14px 24px; border-radius: 12px;
+    font-family: 'Space Grotesk', sans-serif; font-weight: 600; font-size: 15px;
+    cursor: pointer; border: none; transition: all 0.2s; width: 100%;
+  }
+  .btn-primary { background: linear-gradient(135deg, var(--teal), #0090A8); color: var(--navy); box-shadow: 0 4px 20px rgba(0,180,216,0.3); }
+  .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 24px rgba(0,180,216,0.45); }
+  .btn-gold { background: linear-gradient(135deg, var(--gold), #F4A261); color: var(--navy); box-shadow: 0 4px 20px rgba(255,209,102,0.3); }
+  .btn-outline { background: transparent; border: 1.5px solid var(--border); color: var(--gray); margin-top: 10px; }
+  .btn-outline:hover { border-color: var(--teal); color: var(--teal); }
+
+  /* COMPLETED */
+  .completed-card {
+    background: rgba(6,214,160,0.06); border: 1px solid rgba(6,214,160,0.3);
+    border-radius: 16px; padding: 28px 22px; text-align: center; margin-top: 20px;
+  }
+  .completed-icon { font-size: 52px; margin-bottom: 12px; }
+  .completed-title { font-size: 20px; font-weight: 700; color: var(--success); margin-bottom: 8px; }
+  .completed-msg { font-size: 13px; color: var(--gray); line-height: 1.6; }
+
+  /* TREASURE */
+  .treasure-icon { font-size: 72px; text-align: center; margin: 16px 0; animation: float 3s ease-in-out infinite; }
+  .stars { text-align: center; font-size: 26px; letter-spacing: 6px; margin: 10px 0; }
+  .treasure-title { font-size: 26px; font-weight: 700; text-align: center; color: var(--gold); margin-bottom: 8px; }
+  .treasure-sub { text-align: center; color: var(--gray); font-size: 13px; line-height: 1.6; margin-bottom: 24px; }
+  .stat-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 24px; }
+  .stat-box { background: var(--card-bg); border: 1px solid var(--border); border-radius: 14px; padding: 16px; text-align: center; }
+  .stat-num { font-family: 'DM Mono', monospace; font-size: 28px; font-weight: 500; color: var(--teal); }
+  .stat-lbl { font-size: 11px; color: var(--gray); margin-top: 4px; }
+
+  /* ANIMATIONS */
+  @keyframes pulse-green { 0%{box-shadow:0 0 0 0 rgba(6,214,160,0.4)} 100%{box-shadow:0 0 0 12px transparent} }
+  @keyframes shake { 0%,100%{transform:translateX(0)} 20%,60%{transform:translateX(-6px)} 40%,80%{transform:translateX(6px)} }
+  @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-10px)} }
+  @keyframes fadeIn { from{opacity:0;transform:translateY(14px)} to{opacity:1;transform:translateY(0)} }
+  .confetti-piece {
+    position: fixed; width: 8px; height: 8px; top: -10px;
+    border-radius: 2px; animation: confetti-fall linear forwards;
+    pointer-events: none; z-index: 999;
+  }
+  @keyframes confetti-fall {
+    0%{transform:translateY(-10px) rotate(0deg);opacity:1}
+    100%{transform:translateY(110vh) rotate(720deg);opacity:0}
+  }
+</style>
+</head>
+<body>
+
+<!-- ══ ERROR: no punto param ══ -->
+<div class="screen" id="screen-error">
+  <div class="header">
+    <div class="badge">🗺 Búsqueda del Tesoro</div>
+    <h1>Gestión Documental<br><span>Inteligente</span></h1>
+  </div>
+  <div class="error-card">
+    <div class="error-icon">📍</div>
+    <div class="error-title">Escanea el QR de tu punto</div>
+    <div class="error-msg">Esta app se activa escaneando el código QR ubicado en cada estación. Dirígete al punto indicado por el facilitador y escanea el QR correspondiente.</div>
+  </div>
+</div>
+
+<!-- ══ QUESTION SCREEN ══ -->
+<div class="screen" id="screen-question">
+  <div class="header">
+    <div class="badge">🗺 Búsqueda del Tesoro</div>
+    <h1>Gestión Documental<br><span>Inteligente</span></h1>
+  </div>
+
+  <div class="progress-wrap">
+    <div class="progress-bar-bg"><div class="progress-bar-fill" id="prog-fill" style="width:0%"></div></div>
+    <div class="progress-label" id="prog-label">Punto 0 de 5</div>
+  </div>
+
+  <div class="point-indicator">
+    <div class="point-dot" id="q-point-num">1</div>
+    <div class="point-info">
+      <div class="point-label">Punto activo</div>
+      <div class="point-title" id="q-point-title">—</div>
+    </div>
+    <div class="point-type type-fixed" id="q-type-badge">Fija</div>
+  </div>
+
+  <div class="bank-alert" id="bank-alert">
+    <span>⚠️</span>
+    <span>Respuesta incorrecta — el banco de preguntas te da otra oportunidad.</span>
+  </div>
+
+  <div class="question-card">
+    <div class="question-text" id="q-text"></div>
+    <div class="options" id="q-options"></div>
+    <div class="feedback" id="q-feedback"></div>
+  </div>
+
+  <button class="btn btn-primary" id="btn-next" style="display:none" onclick="handleNext()">Continuar →</button>
+</div>
+
+<!-- ══ POINT COMPLETED ══ -->
+<div class="screen" id="screen-point-done">
+  <div class="header">
+    <div class="badge">🗺 Búsqueda del Tesoro</div>
+    <h1>Gestión Documental<br><span>Inteligente</span></h1>
+  </div>
+  <div class="completed-card">
+    <div class="completed-icon">✅</div>
+    <div class="completed-title">¡Punto superado!</div>
+    <div class="completed-msg" id="done-msg">Dirígete al siguiente punto y escanea el QR para continuar.</div>
+  </div>
+  <div style="margin-top:24px; text-align:center;">
+    <div style="font-family:'DM Mono',monospace; font-size:11px; color:var(--gray); letter-spacing:1.5px; text-transform:uppercase; margin-bottom:8px;">Progreso</div>
+    <div style="font-size:28px; font-weight:700; color:var(--teal);" id="done-progress">1 / 5</div>
+  </div>
+</div>
+
+<!-- ══ TREASURE ══ -->
+<div class="screen" id="screen-treasure">
+  <div class="treasure-icon">🏆</div>
+  <div class="stars">⭐⭐⭐⭐⭐</div>
+  <div class="treasure-title">¡Tesoro Encontrado!</div>
+  <div class="treasure-sub">Completaste los 5 puntos de la búsqueda.<br>¡Eres un experto en Gestión Documental Inteligente!</div>
+  <div class="stat-row">
+    <div class="stat-box">
+      <div class="stat-num" id="t-correct">—</div>
+      <div class="stat-lbl">Respuestas<br>correctas</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-num" id="t-tries">—</div>
+      <div class="stat-lbl">Intentos<br>realizados</div>
+    </div>
+  </div>
+  <button class="btn btn-gold" onclick="restartAll()">🔄 Reiniciar juego</button>
+</div>
+
+<script>
+// ══ DATA ══
+const FIXED = [
+  {
+    point:1, title:"Los 4 Pilares",
+    question:"Según el Modelo de los Cuatro Pilares, ¿cuál pilar se encarga del expediente digital y la trazabilidad de cada movimiento histórico?",
+    options:["El Escudo (Seguridad y Continuidad)","El ADN (Expediente y Trazabilidad)","El Sistema Nervioso (Flujos y Automatización)","El Cerebro (Interoperabilidad y Calidad)"],
+    correct:1,
+    feedback:"¡Correcto! El Pilar 1 'El ADN' garantiza la estructura inalterable del expediente con metadatos inteligentes y auditoría histórica."
+  },
+  {
+    point:2, title:"Expediente Digital",
+    question:"En la Anatomía del Expediente Digital, ¿qué función cumple la Capa 4: Firma de Cierre?",
+    options:["Almacenar los documentos en su formato original","Mantener el índice electrónico actualizado cronológicamente","Sellar el índice electrónico criptográficamente al finalizar el trámite","Definir los metadatos para los motores de búsqueda"],
+    correct:2,
+    feedback:"¡Correcto! La Firma de Cierre actúa como el candado criptográfico que sella el expediente, garantizando que nadie pueda alterar su historia."
+  },
+  {
+    point:3, title:"Trazabilidad",
+    question:"¿Cuál principio garantiza que el sistema registre cada interacción con quién la realizó, cuándo y qué acción ejecutó?",
+    options:["Principio de Orden Original","Protección contra Sustitución","Registro Histórico Vital","Radicación Inmediata"],
+    correct:2,
+    feedback:"¡Correcto! El Registro Histórico Vital deja una huella digital imborrable de cada interacción, protegiendo la fiabilidad institucional."
+  },
+  {
+    point:4, title:"Ventanilla Única",
+    question:"La Ventanilla Única como Enrutador Central permite la entrada omnicanal. ¿Cuáles son sus tres canales de ingreso de documentos?",
+    options:["Ciudadano presencial, correo electrónico y formulario web","Fax, teléfono y visita presencial","Correo físico, mensajería interna y portal ciudadano","Radicación manual, escáner y correo certificado"],
+    correct:0,
+    feedback:"¡Correcto! Toda solicitud ingresa por una única puerta tecnológica, ya sea presencial, por correo electrónico o formulario web."
+  },
+  {
+    point:5, title:"Interoperabilidad",
+    question:"Según el modelo de Interoperabilidad, ¿qué ventaja principal ofrece la integración del SGDEA con sistemas financieros y contractuales?",
+    options:["Aumenta el número de empleados en gestión documental","Elimina la necesidad de almacenar el mismo documento en múltiples sistemas","Permite imprimir documentos en formatos estandarizados","Reduce el tiempo de escaneo de documentos físicos"],
+    correct:1,
+    feedback:"¡Correcto! La integración profunda bajo metadatos únicos erradica las duplicidades y establece una única fuente de verdad documental."
+  }
+];
+
+const BANK = [
+  {difficulty:"Fácil",question:"¿Cuántos pilares tiene el modelo de Gestión Documental Inteligente?",options:["Tres","Cuatro","Cinco","Seis"],correct:1,feedback:"El modelo se compone de cuatro pilares: ADN, Sistema Nervioso, Escudo y Cerebro."},
+  {difficulty:"Fácil",question:"¿Qué representa el Pilar 3 'El Escudo' en el modelo?",options:["Flujos y automatización","Seguridad y continuidad documental","Interoperabilidad entre sistemas","Trazabilidad del expediente"],correct:1,feedback:"El Escudo gestiona la clasificación estricta, accesos por perfiles y el blindaje contra el deterioro digital."},
+  {difficulty:"Fácil",question:"¿En qué capa del Expediente Digital se almacenan los documentos reales como textos, imágenes y correos?",options:["Capa 2: Índice Electrónico","Capa 3: Metadatos Estructurados","Capa 4: Firma de Cierre","Capa 1: Documentos de Archivo"],correct:3,feedback:"La Capa 1 contiene las piezas de información reales, en su formato original y orden lógico de trámite."},
+  {difficulty:"Media",question:"¿Qué herramienta controla qué perfiles pueden acceder a documentos clasificados o reservados?",options:["Firma electrónica avanzada","Tablas de Control de Acceso (TCA)","Índice electrónico cronológico","Modelo MGDA de diagnóstico"],correct:1,feedback:"Las TCA funcionan como tarjetas-llave maestras de un edificio inteligente, definiendo accesos por perfil y tipo de información."},
+  {difficulty:"Media",question:"¿Qué ocurre tecnológicamente cuando alguien intenta eliminar o reemplazar un folio en un expediente ya registrado?",options:["El sistema lo permite si tiene perfil administrador","Se genera una alerta en la pista de auditoría automáticamente","El documento se mueve a papelera temporal","Se requiere aprobación de la Alta Dirección"],correct:1,feedback:"La Protección contra Sustitución hace imposible eliminar o reemplazar folios sin detonar una alerta en la pista de auditoría."},
+  {difficulty:"Media",question:"¿Qué modelo se usa para evaluar continuamente la salud del sistema documental e identificar riesgos preventivamente?",options:["SGDEA","Tablas de Control de Acceso (TCA)","MGDA (Modelo de Gestión Documental y Administración de Archivos)","GDI"],correct:2,feedback:"El MGDA permite el diagnóstico continuo, identificando riesgos y optimizando procesos de forma preventiva."},
+  {difficulty:"Media",question:"En la gestión de tiempos de respuesta, ¿qué elemento activa alertas preventivas antes de que venza el plazo legal?",options:["El cronómetro institucional","El semáforo de alertas","La firma electrónica integrada","El índice electrónico"],correct:1,feedback:"El Semáforo de Alertas activa avisos visuales automáticos, evitando silencios administrativos y sanciones."},
+  {difficulty:"Media",question:"¿Qué principio garantiza que la historia del expediente se registre en el orden cronológico exacto en que ocurrieron los hechos?",options:["Principio de Integridad Digital","Principio de Registro Histórico","Principio de Orden Original","Principio de Firma de Cierre"],correct:2,feedback:"El Principio de Orden Original asegura que el índice electrónico bloquee cualquier alteración del orden cronológico."},
+  {difficulty:"Difícil",question:"En el flujo del dato institucional, ¿en qué etapa el documento se evalúa y firma electrónicamente alimentando sistemas financieros y contractuales sin duplicar esfuerzo?",options:["Nace (Flujo y Trazabilidad)","Se Protege (Seguridad)","Se Gestiona (Interoperabilidad)","Perdura (Preservación)"],correct:2,feedback:"En 'Se Gestiona', el documento es evaluado y firmado electrónicamente, alimentando los sistemas integrados sin duplicar esfuerzo."},
+  {difficulty:"Difícil",question:"¿Cuál afirmación es correcta sobre la relación entre metadatos estandarizados y el gobierno del dato?",options:["Los metadatos reducen el espacio de almacenamiento físico en servidores","Los metadatos estandarizados transforman terabytes de datos amorfos en inteligencia institucional utilizable","Los metadatos reemplazan la firma electrónica en el expediente","Los metadatos son opcionales cuando el documento ya posee firma de cierre"],correct:1,feedback:"La implementación rigurosa de metadatos estandarizados asegura que la información tenga contexto y propósito, convirtiéndose en inteligencia institucional."}
+];
+
+// ══ STATE (localStorage) ══
+const LS_KEY = 'gdi_hunt_v2';
+function loadState() {
+  try { return JSON.parse(localStorage.getItem(LS_KEY)) || {}; } catch(e) { return {}; }
+}
+function saveState(s) {
+  try { localStorage.setItem(LS_KEY, JSON.stringify(s)); } catch(e) {}
+}
+
+let gs = loadState();
+// gs: { completedPoints:[], totalCorrect:0, totalTries:0 }
+if (!gs.completedPoints) gs = { completedPoints:[], totalCorrect:0, totalTries:0 };
+
+// ══ CURRENT SESSION ══
+let cur = {
+  point: null,
+  phase: 'fixed',   // 'fixed' | 'bank'
+  bankQueue: [],
+  bankIndex: 0,
+  answered: false,
+  q: null
+};
+
+// ══ INIT ══
+const params = new URLSearchParams(location.search);
+const pParam = parseInt(params.get('punto'));
+
+if (pParam >= 1 && pParam <= 5) {
+  startPoint(pParam);
+} else {
+  showScreen('screen-error');
+}
+
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  window.scrollTo(0,0);
+}
+
+function updateProgress() {
+  const done = gs.completedPoints.length;
+  document.getElementById('prog-fill').style.width = (done/5*100) + '%';
+  document.getElementById('prog-label').textContent = `Punto ${cur.point} de 5 · ${done} completados`;
+}
+
+function startPoint(num) {
+  cur.point = num;
+  cur.phase = 'fixed';
+  cur.bankQueue = shuffleArray([...BANK]);
+  cur.bankIndex = 0;
+  cur.answered = false;
+
+  document.getElementById('bank-alert').classList.remove('show');
+  document.getElementById('q-point-num').textContent = num;
+  document.getElementById('q-point-title').textContent = FIXED[num-1].title;
+  updateProgress();
+
+  if (gs.completedPoints.includes(num)) {
+    // Already done this point
+    showAlreadyDone(num);
+    return;
+  }
+
+  loadFixed();
+  showScreen('screen-question');
+}
+
+function showAlreadyDone(num) {
+  const done = gs.completedPoints.length;
+  document.getElementById('done-msg').textContent =
+    done >= 5
+      ? '¡Has completado todos los puntos! Ve a reclamar tu tesoro.'
+      : 'Ya completaste este punto. Dirígete al siguiente QR.';
+  document.getElementById('done-progress').textContent = `${done} / 5`;
+  if (done >= 5) {
+    showTreasure();
+  } else {
+    showScreen('screen-point-done');
+  }
+}
+
+function loadFixed() {
+  cur.q = FIXED[cur.point - 1];
+  cur.phase = 'fixed';
+  document.getElementById('q-type-badge').textContent = 'Fija';
+  document.getElementById('q-type-badge').className = 'point-type type-fixed';
+  renderQ(cur.q);
+}
+
+function loadBank() {
+  cur.q = cur.bankQueue[cur.bankIndex % cur.bankQueue.length];
+  cur.phase = 'bank';
+  document.getElementById('q-type-badge').textContent = cur.q.difficulty + ' · Banco';
+  document.getElementById('q-type-badge').className = 'point-type type-bank';
+  renderQ(cur.q);
+}
+
+function renderQ(q) {
+  cur.answered = false;
+  document.getElementById('q-text').textContent = q.question;
+  document.getElementById('q-feedback').className = 'feedback';
+  document.getElementById('btn-next').style.display = 'none';
+
+  const letters = ['A','B','C','D'];
+  const container = document.getElementById('q-options');
+  container.innerHTML = '';
+  q.options.forEach((opt,i) => {
+    const btn = document.createElement('button');
+    btn.className = 'option';
+    btn.innerHTML = `<span class="opt-letter">${letters[i]}</span><span>${opt}</span>`;
+    btn.onclick = () => handleAnswer(i);
+    container.appendChild(btn);
+  });
+}
+
+function handleAnswer(chosen) {
+  if (cur.answered) return;
+  cur.answered = true;
+  gs.totalTries = (gs.totalTries||0) + 1;
+
+  const q = cur.q;
+  const opts = document.querySelectorAll('#q-options .option');
+  opts.forEach((b,i) => {
+    b.classList.add('disabled');
+    if (i === q.correct) b.classList.add('correct');
+    else if (i === chosen) b.classList.add('wrong');
+  });
+
+  const fb = document.getElementById('q-feedback');
+  const isCorrect = chosen === q.correct;
+
+  if (isCorrect) {
+    gs.totalCorrect = (gs.totalCorrect||0) + 1;
+    fb.className = 'feedback correct-fb show';
+    fb.textContent = q.feedback;
+    const btn = document.getElementById('btn-next');
+    btn.style.display = 'flex';
+    btn.textContent = '✓ Punto superado →';
+    btn.dataset.result = 'correct';
+  } else {
+    fb.className = 'feedback wrong-fb show';
+    if (cur.phase === 'fixed') {
+      fb.textContent = 'Incorrecto. El banco de preguntas te da otra oportunidad. ¡Ánimo!';
+    } else {
+      fb.textContent = 'Incorrecto. Intenta con otra pregunta del banco.';
+    }
+    const btn = document.getElementById('btn-next');
+    btn.style.display = 'flex';
+    btn.textContent = cur.phase === 'fixed' ? '⚡ Ir al banco de preguntas →' : '⚡ Siguiente pregunta del banco →';
+    btn.dataset.result = 'wrong';
+  }
+  saveState(gs);
+}
+
+function handleNext() {
+  const result = document.getElementById('btn-next').dataset.result;
+  document.getElementById('btn-next').style.display = 'none';
+  document.getElementById('q-feedback').className = 'feedback';
+
+  if (result === 'correct') {
+    if (!gs.completedPoints.includes(cur.point)) {
+      gs.completedPoints.push(cur.point);
+    }
+    saveState(gs);
+    const done = gs.completedPoints.length;
+    document.getElementById('done-progress').textContent = `${done} / 5`;
+
+    if (done >= 5) {
+      launchConfetti();
+      showTreasure();
+    } else {
+      document.getElementById('done-msg').textContent = 'Dirígete al siguiente punto y escanea su QR para continuar.';
+      showScreen('screen-point-done');
+    }
+  } else {
+    // Wrong — go to bank
+    document.getElementById('bank-alert').classList.add('show');
+    if (cur.phase === 'fixed') {
+      cur.bankIndex = 0;
+    } else {
+      cur.bankIndex++;
+    }
+    loadBank();
+  }
+}
+
+function showTreasure() {
+  document.getElementById('t-correct').textContent = gs.totalCorrect || 0;
+  document.getElementById('t-tries').textContent = gs.totalTries || 0;
+  showScreen('screen-treasure');
+}
+
+function restartAll() {
+  gs = { completedPoints:[], totalCorrect:0, totalTries:0 };
+  saveState(gs);
+  showScreen('screen-error');
+}
+
+function shuffleArray(arr) {
+  for (let i=arr.length-1;i>0;i--) {
+    const j=Math.floor(Math.random()*(i+1));
+    [arr[i],arr[j]]=[arr[j],arr[i]];
+  }
+  return arr;
+}
+
+function launchConfetti() {
+  const colors = ['#00B4D8','#FFD166','#06D6A0','#EF476F','#90E0EF'];
+  for (let i=0;i<60;i++) {
+    setTimeout(() => {
+      const el = document.createElement('div');
+      el.className = 'confetti-piece';
+      el.style.left = Math.random()*100+'vw';
+      el.style.background = colors[Math.floor(Math.random()*colors.length)];
+      el.style.animationDuration = (1.5+Math.random()*2)+'s';
+      el.style.animationDelay = Math.random()*0.5+'s';
+      el.style.width = el.style.height = (6+Math.random()*8)+'px';
+      document.body.appendChild(el);
+      setTimeout(()=>el.remove(),4000);
+    }, i*30);
+  }
+}
+</script>
+</body>
+</html>
